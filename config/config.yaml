@@ -1,0 +1,23 @@
+chunking:
+  strategy: "markdown_headers"
+  max_chunk_size: 512
+  overlap: 50
+
+embedding:
+  provider: "sentence_transformers"  # or "openai"
+  model: "all-MiniLM-L6-v2"
+  # endpoint: "https://api.openai.com/v1/embeddings"
+  # api_key: "${OPENAI_API_KEY}"
+
+vector_store:
+  type: "chromadb"
+  persist_directory: "./data/chroma_db"
+  collection_name: "documents"
+  distance_metric: "cosine"
+
+generation:
+  provider: "openai"  # LiteLLM supports: openai, anthropic, cohere, etc.
+  model: "gpt-3.5-turbo"
+  temperature: 0.7
+  max_tokens: 512
+  top_k: 3  # Number of chunks to retrieve
