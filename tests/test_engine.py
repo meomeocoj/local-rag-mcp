@@ -5,7 +5,7 @@ import tempfile
 import os
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
-from src.engine import RAGEngine
+from src.engine import RAGEngine, create_rag_from_yaml, create_rag_from_config, load_config
 
 
 @pytest.fixture
@@ -83,7 +83,7 @@ def mock_components():
 
 def test_engine_initialization(temp_config, mock_components):
     """Test RAG engine initialization."""
-    engine = RAGEngine(config_path=temp_config)
+    engine = create_rag_from_yaml(config_path=temp_config)
 
     assert engine.config is not None
     assert engine.chunker is not None
@@ -110,7 +110,7 @@ def test_ingest_document(temp_config, mock_components):
         mock_components['chunker'].chunk_document.return_value = [mock_chunk]
         mock_components['embedder'].embed_batch.return_value = [[0.1, 0.2, 0.3]]
 
-        engine = RAGEngine(config_path=temp_config)
+        engine = create_rag_from_yaml(config_path=temp_config)
         num_chunks = engine.ingest_document(temp_doc)
 
         # Verify chunking was called
@@ -139,7 +139,7 @@ def test_ingest_text(temp_config, mock_components):
     mock_components['chunker'].chunk_document.return_value = [mock_chunk]
     mock_components['embedder'].embed_batch.return_value = [[0.1, 0.2, 0.3]]
 
-    engine = RAGEngine(config_path=temp_config)
+    engine = create_rag_from_yaml(config_path=temp_config)
     num_chunks = engine.ingest_text("Test content", source_name="test")
 
     assert num_chunks == 1
@@ -154,7 +154,7 @@ def test_query(temp_config, mock_components):
     ]
     mock_components['retriever'].retrieve.return_value = mock_results
 
-    engine = RAGEngine(config_path=temp_config)
+    engine = create_rag_from_yaml(config_path=temp_config)
     results = engine.query("test query", top_k=2)
 
     mock_components['retriever'].retrieve.assert_called_once_with("test query", top_k=2)
@@ -169,7 +169,7 @@ def test_generate_answer(temp_config, mock_components):
     mock_components['retriever'].retrieve.return_value = mock_context
     mock_components['generator'].generate.return_value = "Generated answer"
 
-    engine = RAGEngine(config_path=temp_config)
+    engine = create_rag_from_yaml(config_path=temp_config)
     answer = engine.generate_answer("test query")
 
     assert answer == "Generated answer"
@@ -179,7 +179,7 @@ def test_generate_answer(temp_config, mock_components):
 
 def test_get_stats(temp_config, mock_components):
     """Test getting engine statistics."""
-    engine = RAGEngine(config_path=temp_config)
+    engine = create_rag_from_yaml(config_path=temp_config)
     stats = engine.get_stats()
 
     assert 'total_chunks' in stats
@@ -191,7 +191,7 @@ def test_get_stats(temp_config, mock_components):
 
 def test_clear(temp_config, mock_components):
     """Test clearing the vector store."""
-    engine = RAGEngine(config_path=temp_config)
+    engine = create_rag_from_yaml(config_path=temp_config)
     engine.clear()
 
     mock_components['store'].clear.assert_called_once()
@@ -217,7 +217,7 @@ generation:
         # Set environment variable
         os.environ['TEST_API_KEY'] = 'test-key-123'
 
-        engine = RAGEngine(config_path=temp_path)
+        engine = create_rag_from_yaml(config_path=temp_path)
 
         # Check that env var was substituted
         assert engine.config['embedding']['api_key'] == 'test-key-123'
@@ -226,3 +226,68 @@ generation:
         os.unlink(temp_path)
         if 'TEST_API_KEY' in os.environ:
             del os.environ['TEST_API_KEY']
+
+
+def test_dependency_injection():
+    """Test that RAG engine accepts injected dependencies."""
+    from src.chunker import MarkdownChunker
+    from src.generator import Generator
+
+    # Create mock dependencies
+    mock_chunker = Mock(spec=MarkdownChunker)
+    mock_embedder = Mock()
+    mock_embedder.get_dimension.return_value = 384
+    mock_store = Mock()
+    mock_store.count.return_value = 5
+    mock_generator = Mock(spec=Generator)
+
+    # Create engine with injected dependencies
+    config = {'test': 'config'}
+    engine = RAGEngine(
+        chunker=mock_chunker,
+        embedder=mock_embedder,
+        vector_store=mock_store,
+        generator=mock_generator,
+        config=config
+    )
+
+    # Verify dependencies were injected correctly
+    assert engine.chunker is mock_chunker
+    assert engine.embedder is mock_embedder
+    assert engine.vector_store is mock_store
+    assert engine.generator is mock_generator
+    assert engine.config == config
+
+
+def test_create_rag_from_config(mock_components):
+    """Test creating RAG engine from config dictionary."""
+    config = {
+        'chunking': {
+            'max_chunk_size': 256,
+            'overlap': 25
+        },
+        'embedding': {
+            'provider': 'sentence_transformers',
+            'model': 'all-MiniLM-L6-v2'
+        },
+        'vector_store': {
+            'persist_directory': './test_db',
+            'collection_name': 'test',
+            'distance_metric': 'cosine'
+        },
+        'generation': {
+            'provider': 'openai',
+            'model': 'gpt-3.5-turbo',
+            'temperature': 0.5,
+            'max_tokens': 256
+        }
+    }
+
+    engine = create_rag_from_config(config)
+
+    assert engine is not None
+    assert engine.config == config
+    assert engine.chunker is not None
+    assert engine.embedder is not None
+    assert engine.vector_store is not None
+    assert engine.generator is not None

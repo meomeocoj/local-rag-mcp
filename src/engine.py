@@ -15,76 +15,30 @@ from src.generator import Generator
 class RAGEngine:
     """Main RAG engine that orchestrates all components."""
 
-    def __init__(self, config_path: str = "config/config.yaml"):
+    def __init__(
+        self,
+        chunker: MarkdownChunker,
+        embedder: EmbedderInterface,
+        vector_store: VectorStoreInterface,
+        generator: Generator,
+        config: Optional[Dict[str, Any]] = None
+    ):
         """
-        Initialize the RAG engine.
+        Initialize the RAG engine with injected dependencies.
 
         Args:
-            config_path: Path to configuration file
+            chunker: Chunker instance for splitting documents
+            embedder: Embedder instance for generating embeddings
+            vector_store: Vector store instance for storage and retrieval
+            generator: Generator instance for answer generation
+            config: Optional configuration dictionary
         """
-        self.config = self._load_config(config_path)
-        self.chunker = self._init_chunker()
-        self.embedder = self._init_embedder()
-        self.vector_store = self._init_vector_store()
-        self.retriever = Retriever(self.embedder, self.vector_store)
-        self.generator = self._init_generator()
-
-    def _load_config(self, config_path: str) -> Dict[str, Any]:
-        """Load configuration from YAML file."""
-        # Handle environment variable substitution
-        with open(config_path, 'r') as f:
-            config_text = f.read()
-
-        # Simple environment variable substitution
-        import re
-        env_pattern = re.compile(r'\$\{(\w+)\}')
-        config_text = env_pattern.sub(
-            lambda m: os.environ.get(m.group(1), m.group(0)),
-            config_text
-        )
-
-        return yaml.safe_load(config_text)
-
-    def _init_chunker(self) -> MarkdownChunker:
-        """Initialize the chunker from config."""
-        chunking_config = self.config.get('chunking', {})
-        return MarkdownChunker(
-            max_chunk_size=chunking_config.get('max_chunk_size', 512),
-            overlap=chunking_config.get('overlap', 50)
-        )
-
-    def _init_embedder(self) -> EmbedderInterface:
-        """Initialize the embedder from config."""
-        embedding_config = self.config.get('embedding', {})
-        provider = embedding_config.get('provider', 'sentence_transformers')
-        model = embedding_config.get('model', 'all-MiniLM-L6-v2')
-
-        kwargs = {}
-        if 'api_key' in embedding_config:
-            kwargs['api_key'] = embedding_config['api_key']
-        if 'endpoint' in embedding_config:
-            kwargs['endpoint'] = embedding_config['endpoint']
-
-        return EmbedderFactory.create_embedder(provider, model, **kwargs)
-
-    def _init_vector_store(self) -> VectorStoreInterface:
-        """Initialize the vector store from config."""
-        vs_config = self.config.get('vector_store', {})
-        return ChromaDBStore(
-            persist_directory=vs_config.get('persist_directory', './data/chroma_db'),
-            collection_name=vs_config.get('collection_name', 'documents'),
-            distance_metric=vs_config.get('distance_metric', 'cosine')
-        )
-
-    def _init_generator(self) -> Generator:
-        """Initialize the generator from config."""
-        gen_config = self.config.get('generation', {})
-        return Generator(
-            provider=gen_config.get('provider', 'openai'),
-            model=gen_config.get('model', 'gpt-3.5-turbo'),
-            temperature=gen_config.get('temperature', 0.7),
-            max_tokens=gen_config.get('max_tokens', 512)
-        )
+        self.chunker = chunker
+        self.embedder = embedder
+        self.vector_store = vector_store
+        self.retriever = Retriever(embedder, vector_store)
+        self.generator = generator
+        self.config = config or {}
 
     def ingest_document(
         self,
@@ -247,3 +201,107 @@ class RAGEngine:
     def clear(self) -> None:
         """Clear all data from the vector store."""
         self.vector_store.clear()
+
+
+def load_config(config_path: str) -> Dict[str, Any]:
+    """
+    Load configuration from YAML file with environment variable substitution.
+
+    Args:
+        config_path: Path to configuration file
+
+    Returns:
+        Configuration dictionary
+    """
+    # Handle environment variable substitution
+    with open(config_path, 'r') as f:
+        config_text = f.read()
+
+    # Simple environment variable substitution
+    import re
+    env_pattern = re.compile(r'\$\{(\w+)\}')
+    config_text = env_pattern.sub(
+        lambda m: os.environ.get(m.group(1), m.group(0)),
+        config_text
+    )
+
+    return yaml.safe_load(config_text)
+
+
+def create_rag_from_config(config: Dict[str, Any]) -> RAGEngine:
+    """
+    Create a RAG engine instance from a configuration dictionary.
+
+    Args:
+        config: Configuration dictionary with chunking, embedding, vector_store, and generation sections
+
+    Returns:
+        Configured RAGEngine instance
+    """
+    # Initialize chunker
+    chunking_config = config.get('chunking', {})
+    chunker = MarkdownChunker(
+        max_chunk_size=chunking_config.get('max_chunk_size', 512),
+        overlap=chunking_config.get('overlap', 50)
+    )
+
+    # Initialize embedder
+    embedding_config = config.get('embedding', {})
+    provider = embedding_config.get('provider', 'sentence_transformers')
+    model = embedding_config.get('model', 'all-MiniLM-L6-v2')
+
+    kwargs = {}
+    if 'api_key' in embedding_config:
+        kwargs['api_key'] = embedding_config['api_key']
+    if 'endpoint' in embedding_config:
+        kwargs['endpoint'] = embedding_config['endpoint']
+
+    embedder = EmbedderFactory.create_embedder(provider, model, **kwargs)
+
+    # Initialize vector store
+    vs_config = config.get('vector_store', {})
+    vector_store = ChromaDBStore(
+        persist_directory=vs_config.get('persist_directory', './data/chroma_db'),
+        collection_name=vs_config.get('collection_name', 'documents'),
+        distance_metric=vs_config.get('distance_metric', 'cosine')
+    )
+
+    # Initialize generator
+    gen_config = config.get('generation', {})
+    generator = Generator(
+        provider=gen_config.get('provider', 'openai'),
+        model=gen_config.get('model', 'gpt-3.5-turbo'),
+        temperature=gen_config.get('temperature', 0.7),
+        max_tokens=gen_config.get('max_tokens', 512)
+    )
+
+    # Create and return RAG engine
+    return RAGEngine(
+        chunker=chunker,
+        embedder=embedder,
+        vector_store=vector_store,
+        generator=generator,
+        config=config
+    )
+
+
+def create_rag_from_yaml(config_path: str = "config/config.yaml") -> RAGEngine:
+    """
+    Create a RAG engine instance from a YAML configuration file.
+
+    This is the main utility function for creating a RAG engine with all dependencies
+    properly initialized from a YAML configuration file.
+
+    Args:
+        config_path: Path to YAML configuration file (default: "config/config.yaml")
+
+    Returns:
+        Configured RAGEngine instance with all dependencies injected
+
+    Example:
+        >>> engine = create_rag_from_yaml("config/config.yaml")
+        >>> engine.ingest_document("docs/readme.md")
+        >>> answer = engine.generate_answer("What is RAG?")
+    """
+    config = load_config(config_path)
+    return create_rag_from_config(config)
