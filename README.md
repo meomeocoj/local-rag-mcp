@@ -25,16 +25,21 @@ A minimal Retrieval-Augmented Generation (RAG) engine with persistent storage fo
 
 ## Installation
 
+This project uses [uv](https://docs.astral.sh/uv/) for fast, reliable Python package management.
+
 ```bash
 # Clone the repository
 git clone <repository-url>
 cd local-rag-mcp
 
-# Install dependencies
-pip install -e .
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Install development dependencies
-pip install -e ".[dev]"
+# Install dependencies
+uv sync
+
+# Or install with development dependencies
+uv sync --all-extras
 ```
 
 ## Configuration
@@ -86,50 +91,50 @@ Or use a `.env` file with python-dotenv.
 
 ```bash
 # Ingest a markdown file
-python main.py ingest path/to/document.md
+uv run python main.py ingest path/to/document.md
 
 # Ingest with custom source name
-python main.py ingest path/to/document.md --source-name "My Project Docs"
+uv run python main.py ingest path/to/document.md --source-name "My Project Docs"
 ```
 
 #### Query (Retrieval Only)
 
 ```bash
 # Search for relevant chunks
-python main.py query "What is RAG?"
+uv run python main.py query "What is RAG?"
 
 # Specify number of results
-python main.py query "What is RAG?" --top-k 5
+uv run python main.py query "What is RAG?" --top-k 5
 ```
 
 #### Generate Answers
 
 ```bash
 # Generate an answer using RAG
-python main.py generate "How do I implement RAG?"
+uv run python main.py generate "How do I implement RAG?"
 
 # Stream the response
-python main.py generate "How do I implement RAG?" --stream
+uv run python main.py generate "How do I implement RAG?" --stream
 
 # Use custom system prompt
-python main.py generate "Explain RAG" --system-prompt "You are a technical expert."
+uv run python main.py generate "Explain RAG" --system-prompt "You are a technical expert."
 ```
 
 #### Statistics
 
 ```bash
 # Get engine statistics
-python main.py stats
+uv run python main.py stats
 ```
 
 #### Clear Data
 
 ```bash
 # Clear all stored data
-python main.py clear
+uv run python main.py clear
 
 # Skip confirmation
-python main.py clear --confirm
+uv run python main.py clear --confirm
 ```
 
 ### Programmatic Usage
@@ -192,13 +197,13 @@ local-rag-mcp/
 
 ```bash
 # Run all tests
-pytest
+uv run pytest
 
 # Run with coverage
-pytest --cov=src --cov-report=term-missing
+uv run pytest --cov=src --cov-report=term-missing
 
 # Run specific test file
-pytest tests/test_engine.py
+uv run pytest tests/test_engine.py
 ```
 
 ## Architecture
