@@ -5,7 +5,7 @@ chunking:
 
 embedding:
   provider: "sentence_transformers"  # or "openai"
-  model: "all-MiniLM-L6-v2"
+  model: "google/embeddinggemma-300m"
   # endpoint: "https://api.openai.com/v1/embeddings"
   # api_key: "${OPENAI_API_KEY}"
 
