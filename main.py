@@ -4,7 +4,7 @@
 import argparse
 import sys
 from pathlib import Path
-from src.engine import RAGEngine
+from src.engine import create_rag_from_yaml
 
 
 def main():
@@ -123,7 +123,7 @@ Examples:
 
     try:
         # Initialize the RAG engine
-        engine = RAGEngine(config_path=args.config)
+        engine = create_rag_from_yaml(config_path=args.config)
 
         # Execute commands
         if args.command == 'ingest':
