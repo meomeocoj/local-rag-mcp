@@ -52,3 +52,6 @@ htmlcov/
 
 # Logs
 *.log
+
+# SQLite database
+:memory:/

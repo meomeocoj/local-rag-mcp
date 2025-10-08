@@ -134,3 +134,58 @@ Content here.
         assert 'source' in chunk.metadata
         assert 'position' in chunk.metadata
         assert 'headers' in chunk.metadata
+
+
+def test_token_limit_enforcement():
+    """Test that chunks never exceed max token limit."""
+    # Use conservative token limit
+    max_tokens = 1000
+    chunker = MarkdownChunker(max_chunk_size=10000, overlap=50, max_tokens_per_chunk=max_tokens)
+
+    # Create extremely large content (way over token limit)
+    huge_paragraph = "This is a sentence with many words. " * 500  # ~3500 words = ~4600 tokens
+
+    markdown_text = f"""# Huge Section
+
+{huge_paragraph}
+
+## Another Section
+
+{huge_paragraph}
+"""
+
+    chunks = chunker.chunk_document(markdown_text, source="huge.md")
+
+    # All chunks must respect token limit (1 token ≈ 4 chars)
+    max_chars = max_tokens * 4
+    for chunk in chunks:
+        estimated_tokens = len(chunk.text) // 4
+        assert estimated_tokens <= max_tokens, f"Chunk has ~{estimated_tokens} tokens, exceeds limit of {max_tokens}"
+        assert len(chunk.text) <= max_chars + 100  # Small tolerance for splitting
+
+
+def test_embedding_api_batch_safety():
+    """Test that chunks are safe for embedding API with 5461 token limit."""
+    # Simulate real-world scenario with embedding API limit
+    max_tokens = 5000  # Conservative limit under 5461
+    chunker = MarkdownChunker(max_chunk_size=20000, overlap=100, max_tokens_per_chunk=max_tokens)
+
+    # Create content that would exceed API limit if not split
+    large_section = "Word " * 10000  # ~10000 tokens
+
+    markdown_text = f"""# Large Documentation
+
+{large_section}
+"""
+
+    chunks = chunker.chunk_document(markdown_text, source="api_test.md")
+
+    # Verify no single chunk exceeds safe limit
+    for chunk in chunks:
+        estimated_tokens = len(chunk.text) // 4
+        assert estimated_tokens <= max_tokens, f"Chunk would exceed API limit: ~{estimated_tokens} tokens"
+
+
+# Deprecated tests removed - these tested the old "paragraphs" strategy
+# which was removed in favor of LangChain MarkdownHeaderTextSplitter
+# See specs/002-use-langchain-markdownheadertextsplitter/ for migration details
