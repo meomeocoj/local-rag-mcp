@@ -1,15 +1,14 @@
 chunking:
   strategy: "headers"  # Using LangChain MarkdownHeaderTextSplitter
-  max_chunk_size: 1024  # Optimal for header-based chunking
+  max_chunk_size: 2048  # Optimal for header-based chunking
   overlap: 100  # Character overlap for context continuity
-  max_tokens_per_chunk: 5000  # Hard limit to prevent embedding API errors (API max: 5461)
 
 embedding:
   provider: "openai"  # "openai" "sentence_transformers"
   model: "Qwen3-8B-AWQ"
   endpoint: "http://210.211.99.160:8282/v1"
   api_key: "dummy"  # Required by OpenAI client but unused
-  batch_size: 5  # Maximum batch size for Qwen3 endpoint
+  batch_size: 32  # Maximum batch size for Qwen3 endpoint
 
 vector_store:
   type: "chromadb"

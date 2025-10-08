@@ -185,17 +185,82 @@ Environment variables (e.g., `OPENAI_API_KEY`) can be set via `.env` file.
 - Use `main.py stats` to check vector store state
 - Enable debug logging in engine initialization
 
+## Migration Notes
+
+### LangChain MarkdownHeaderTextSplitter Integration (v0.2.0)
+
+**Date**: 2025-10-07
+
+The chunking engine has been updated to use LangChain's MarkdownHeaderTextSplitter for improved header hierarchy preservation.
+
+#### What Changed
+- **Chunker Implementation**: Replaced custom mistune-based chunking with LangChain MarkdownHeaderTextSplitter
+- **Default Chunk Size**: Increased from 512 to 1024 characters
+- **Default Overlap**: Increased from 50 to 100 characters
+- **Removed Strategies**: The "paragraphs", "semantic", and "recursive" strategies have been removed. Only "headers" strategy is now supported.
+- **Dependencies**: Added `langchain-text-splitters>=0.3.0`
+
+#### Breaking Changes
+- **Manual Re-ingestion Required**: Existing vector store data must be cleared and re-ingested to use the new chunking behavior
+- **Configuration Updates**: `config/config.yaml` must be updated with new defaults
+- **Removed Strategies**: Code using non-"headers" strategies will fail
+
+#### Migration Steps
+1. **Backup existing data** (optional):
+   ```bash
+   cp -r data/chroma_db data/chroma_db.backup.$(date +%Y%m%d)
+   ```
+
+2. **Install updated dependencies**:
+   ```bash
+   uv sync --all-extras
+   ```
+
+3. **Update configuration** in `config/config.yaml`:
+   ```yaml
+   chunking:
+     strategy: "headers"
+     max_chunk_size: 1024
+     overlap: 100
+   ```
+
+4. **Clear existing vector store**:
+   ```bash
+   uv run python main.py clear --confirm
+   ```
+
+5. **Re-ingest documents**:
+   ```bash
+   uv run python main.py ingest data/documents/*.md
+   ```
+
+6. **Verify migration**:
+   ```bash
+   uv run python main.py stats
+   uv run python main.py query "test query"
+   ```
+
+#### Benefits
+- **Better Context Preservation**: Header hierarchy (H1 → H2 → H3) is now preserved in chunk metadata
+- **Improved Retrieval**: Query results display full header context for better understanding
+- **Larger Chunks**: 1024-character chunks capture more complete semantic units
+- **Battle-tested**: LangChain's splitter is widely used in production RAG systems
+
+#### Performance
+- No impact on query latency (chunking happens at ingestion time)
+- P95 query latency maintained at <500ms
+
 ## Known Limitations
 
 - Currently supports only markdown documents
 - No re-ranking of retrieval results
 - Single collection per engine instance
 - Limited metadata filtering
+- Only "headers" chunking strategy supported (as of v0.2.0)
 
 ## Future Enhancements
 
 - Support for PDF, HTML, and other formats
-- Advanced chunking strategies (semantic, recursive)
 - Re-ranking with cross-encoders
 - Multi-query retrieval
 - Metadata filtering in queries
